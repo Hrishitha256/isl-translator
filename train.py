@@ -1,7 +1,7 @@
 # train.py  -  ISL sign to text / speech (training + live demo in one file)
 #
 #   python train.py        -> train on hrishitha.csv, test on saisree.csv, save model
-#   python train.py live   -> open camera, predict signs, show text and speak
+#   python train.py live   -> open camera, predict signs, show text and speaks
 
 import os
 import pickle
