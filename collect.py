@@ -25,8 +25,7 @@ from features import (create_hands, extract_features, draw_landmarks,
 # ---- EDIT THIS LIST once the team decides the vocabulary ----
 # Everyone must spell the labels exactly the same way.
 LABELS = ["1", "2", "3", "4", "5",
-          "A", "B", "C", "D", "E",
-          "Hello", "Thank you", "Yes", "No"]
+          "6", "7", "8", "9"]
 # --------------------------------------------------------------
 
 DATA_DIR = "data"
