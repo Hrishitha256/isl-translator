@@ -2,7 +2,7 @@
 #
 #   python train.py        -> train on hrishitha.csv, test on saisree.csv, save model
 #   python train.py live   -> open camera, predict signs, show text and speak
-
+print("RUNNING NEW VERSION")
 import os
 import pickle
 import sys
