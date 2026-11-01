@@ -29,7 +29,7 @@ LABELS = ["1", "2", "3", "4", "5",
 # --------------------------------------------------------------
 
 DATA_DIR = "data"
-TARGET_PER_LABEL = 150     # samples to record per sign
+TARGET_PER_LABEL = 300     # samples to record per sign
 AUTO_INTERVAL = 0.1        # seconds between auto-saved samples
 COUNTDOWN = 2.0            # seconds to get ready after pressing 'r'
 
