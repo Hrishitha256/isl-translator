@@ -1,7 +1,7 @@
 # train.py  -  ISL sign to text / speech (training + live demo in one file)
 #
 #   python train.py        -> train on hrishitha.csv, test on saisree.csv, save model
-#   python train.py live   -> open camera, predict signs, show text and speaks
+#   python train.py live   -> open camera, predict signs, show text and speak
 
 import os
 import pickle
@@ -18,12 +18,13 @@ TRAIN_FILE = "data/hrishitha.csv"
 TEST_FILE = "data/saisree.csv"
 MODEL_PATH = "models/model.pkl"
 
-# IMPORTANT: must match how collect.py built the CSV features.
-# False = raw x,y,z of 21 landmarks (63 numbers)
-# True  = wrist-subtracted and scaled (also 63 numbers)
-NORMALIZE = False
+# ---- Must match how collect.py built the CSV (126 = 2 hands x 21 points x 3) ----
+NORMALIZE = False          # True if collect.py subtracted the wrist and scaled
+USE_HANDEDNESS = True      # True: slot 0 = Left hand, slot 1 = Right hand
+                           # False: slots follow MediaPipe detection order
+FLIP_FRAME = True          # False if collect.py did NOT mirror the camera image
 
-# Live settings
+# ---- Live settings ----
 MIN_CONFIDENCE = 0.60      # ignore weak predictions
 SMOOTHING_FRAMES = 10      # look at the last N frames
 AGREE_FRAMES = 8           # how many must agree before showing/speaking
@@ -32,13 +33,20 @@ AGREE_FRAMES = 8           # how many must agree before showing/speaking
 # ----------------------------------------------------------------------
 # Features (the live code must produce the same features as collect.py)
 # ----------------------------------------------------------------------
-def extract_features(hand_landmarks):
-    pts = np.array([[p.x, p.y, p.z] for p in hand_landmarks.landmark], dtype=np.float32)
-    if NORMALIZE:
-        pts = pts - pts[0]                       # wrist becomes origin
-        scale = np.max(np.abs(pts)) or 1.0
-        pts = pts / scale
-    return pts.flatten()
+def extract_features(multi_hand_landmarks, multi_handedness=None):
+    """Return 126 numbers: [slot 0 (63) | slot 1 (63)], zero-padded."""
+    slots = [np.zeros(63, dtype=np.float32), np.zeros(63, dtype=np.float32)]
+    for i, hand in enumerate(multi_hand_landmarks[:2]):
+        pts = np.array([[p.x, p.y, p.z] for p in hand.landmark], dtype=np.float32)
+        if NORMALIZE:
+            pts = pts - pts[0]
+            pts = pts / (np.max(np.abs(pts)) or 1.0)
+        slot = i
+        if USE_HANDEDNESS and multi_handedness is not None:
+            label = multi_handedness[i].classification[0].label
+            slot = 0 if label == "Left" else 1
+        slots[slot] = pts.flatten()
+    return np.concatenate(slots)
 
 
 # ----------------------------------------------------------------------
@@ -139,7 +147,7 @@ def live():
     mp_draw = mp.solutions.drawing_utils
     hands = mp_hands.Hands(
         static_image_mode=False,
-        max_num_hands=1,
+        max_num_hands=2,
         min_detection_confidence=0.6,
         min_tracking_confidence=0.6,
     )
@@ -152,6 +160,7 @@ def live():
     current = ""
     last_spoken = ""
     sentence = []
+    conf = 0.0
 
     print("Live mode. Keys: q = quit, c = clear sentence, s = speak sentence")
 
@@ -160,17 +169,17 @@ def live():
         if not ok:
             break
 
-        # If collect.py did NOT mirror the frame, remove this line
-        frame = cv2.flip(frame, 1)
+        if FLIP_FRAME:
+            frame = cv2.flip(frame, 1)
 
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         result = hands.process(rgb)
 
         if result.multi_hand_landmarks:
-            hand = result.multi_hand_landmarks[0]
-            mp_draw.draw_landmarks(frame, hand, mp_hands.HAND_CONNECTIONS)
+            for hand in result.multi_hand_landmarks:
+                mp_draw.draw_landmarks(frame, hand, mp_hands.HAND_CONNECTIONS)
 
-            feats = extract_features(hand)
+            feats = extract_features(result.multi_hand_landmarks, result.multi_handedness)
             if feats.shape[0] != expected:
                 raise SystemExit(
                     f"Feature mismatch: model expects {expected}, live gives {feats.shape[0]}. "
