@@ -1,231 +1,134 @@
-# train.py  -  ISL sign to text / speech (training + live demo in one file)
-#
-#   python train.py        -> train on hrishitha.csv, test on saisree.csv, save model
-#   python train.py live   -> open camera, predict signs, show text and speak
+"""
+train.py - train the sign classifier from EVERY CSV in data/.
 
+Run:  python train.py
+
+- 1 person's data  -> random 80/20 split (optimistic score, pipeline test only)
+- 2+ people's data -> leave-one-person-out: train on everyone else, test on
+                      the person left out (the honest score for a new signer)
+
+The best model is retrained on ALL data and saved to models/model.pkl
+"""
+
+import glob
 import os
-import pickle
-import sys
-import threading
-from collections import Counter, deque
+import warnings
 
+import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
-TRAIN_FILE = "data/hrishitha.csv"
-TEST_FILE = "data/saisree.csv"
-MODEL_PATH = "models/model.pkl"
+warnings.filterwarnings("ignore", category=FutureWarning)
+warnings.filterwarnings("ignore", category=UserWarning)
 
-# ---- Must match how collect.py built the CSV (126 = 2 hands x 21 points x 3) ----
-NORMALIZE = False          # True if collect.py subtracted the wrist and scaled
-USE_HANDEDNESS = True      # True: slot 0 = Left hand, slot 1 = Right hand
-                           # False: slots follow MediaPipe detection order
-FLIP_FRAME = True          # False if collect.py did NOT mirror the camera image
-
-# ---- Live settings ----
-MIN_CONFIDENCE = 0.60      # ignore weak predictions
-SMOOTHING_FRAMES = 10      # look at the last N frames
-AGREE_FRAMES = 8           # how many must agree before showing/speaking
+DATA_DIR = "data"
+MODEL_PATH = os.path.join("models", "model.pkl")
 
 
-# ----------------------------------------------------------------------
-# Features (the live code must produce the same features as collect.py)
-# ----------------------------------------------------------------------
-def extract_features(multi_hand_landmarks, multi_handedness=None):
-    """Return 126 numbers: [slot 0 (63) | slot 1 (63)], zero-padded."""
-    slots = [np.zeros(63, dtype=np.float32), np.zeros(63, dtype=np.float32)]
-    for i, hand in enumerate(multi_hand_landmarks[:2]):
-        pts = np.array([[p.x, p.y, p.z] for p in hand.landmark], dtype=np.float32)
-        if NORMALIZE:
-            pts = pts - pts[0]
-            pts = pts / (np.max(np.abs(pts)) or 1.0)
-        slot = i
-        if USE_HANDEDNESS and multi_handedness is not None:
-            label = multi_handedness[i].classification[0].label
-            slot = 0 if label == "Left" else 1
-        slots[slot] = pts.flatten()
-    return np.concatenate(slots)
+def load_data():
+    files = sorted(glob.glob(os.path.join(DATA_DIR, "*.csv")))
+    if not files:
+        raise SystemExit("No CSV files found in data/. Record some samples first.")
+    X_parts, y_parts, p_parts = [], [], []
+    for f in files:
+        df = pd.read_csv(f, dtype={"label": str})   # keep "1" as text, not a number
+        if len(df) == 0:
+            print(f"Skipping empty file: {f}")
+            continue
+        name = os.path.splitext(os.path.basename(f))[0]
+        X_parts.append(df.drop(columns=["label"]).to_numpy(dtype=np.float32))
+        y_parts.append(df["label"].to_numpy())
+        p_parts.append(np.full(len(df), name))
+    X = np.vstack(X_parts)
+    y = np.concatenate(y_parts)
+    person = np.concatenate(p_parts)
+    return X, y, person
 
 
-# ----------------------------------------------------------------------
-# Training
-# ----------------------------------------------------------------------
-def load_file(path):
-    df = pd.read_csv(path)
-
-    # If the CSV has no header row, reload without one
-    try:
-        float(df.columns[1])
-        df = pd.read_csv(path, header=None)
-    except (ValueError, IndexError):
-        pass
-
-    # Label column: named label/class/sign/letter, otherwise the first column
-    label_col = df.columns[0]
-    for c in df.columns:
-        if str(c).lower() in ("label", "class", "sign", "letter"):
-            label_col = c
-            break
-
-    y = df[label_col].astype(str).values
-    X = df.drop(columns=[label_col]).apply(pd.to_numeric, errors="coerce")
-    X = X.fillna(0).values.astype(np.float32)
-    return X, y
+def make_models():
+    return {
+        "RandomForest": RandomForestClassifier(
+            n_estimators=100, random_state=42, n_jobs=-1),
+        "SVM": make_pipeline(
+            StandardScaler(),
+            SVC(kernel="rbf", C=10, gamma="scale", probability=True, random_state=42)),
+    }
 
 
-def train():
-    X_train, y_train = load_file(TRAIN_FILE)
-    X_test, y_test = load_file(TEST_FILE)
+def evaluate(name, model, X, y, person):
+    """Return (accuracy, true labels, predicted labels) using the honest split."""
+    people = np.unique(person)
+    if len(people) >= 2:
+        y_true_all, y_pred_all = [], []
+        print(f"\n{name}: leave-one-person-out")
+        for p in people:
+            test = person == p
+            model.fit(X[~test], y[~test])
+            pred = model.predict(X[test])
+            acc = accuracy_score(y[test], pred)
+            print(f"   test on {p:<12} accuracy = {acc:.3f}")
+            y_true_all.extend(y[test])
+            y_pred_all.extend(pred)
+        acc = accuracy_score(y_true_all, y_pred_all)
+        print(f"   overall accuracy = {acc:.3f}")
+        return acc, np.array(y_true_all), np.array(y_pred_all)
 
-    print(f"Train ({TRAIN_FILE}): {len(y_train)} samples, {X_train.shape[1]} features")
-    print(f"Test  ({TEST_FILE}): {len(y_test)} samples, {X_test.shape[1]} features")
-
-    if X_train.shape[1] != X_test.shape[1]:
-        raise SystemExit("Feature counts differ between the two files. Check the CSV columns.")
-
-    print("Train classes:", sorted(set(y_train)))
-    print("Test classes: ", sorted(set(y_test)))
-
-    model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
-    model.fit(X_train, y_train)
-
-    pred = model.predict(X_test)
-    print(f"\nTest accuracy: {accuracy_score(y_test, pred):.3f}\n")
-    print(classification_report(y_test, pred, zero_division=0))
-
-    labels = sorted(set(y_train) | set(y_test))
-    print("Confusion matrix (rows = true, columns = predicted):")
-    print("labels:", labels)
-    print(confusion_matrix(y_test, pred, labels=labels))
-
-    os.makedirs("models", exist_ok=True)
-    with open(MODEL_PATH, "wb") as f:
-        pickle.dump(model, f)
-    print(f"\nSaved model to {MODEL_PATH}")
+    print(f"\n{name}: random 80/20 split (only one person's data - optimistic!)")
+    X_tr, X_te, y_tr, y_te = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=42)
+    model.fit(X_tr, y_tr)
+    pred = model.predict(X_te)
+    acc = accuracy_score(y_te, pred)
+    print(f"   accuracy = {acc:.3f}")
+    return acc, y_te, pred
 
 
-# ----------------------------------------------------------------------
-# Speech
-# ----------------------------------------------------------------------
-_speak_lock = threading.Lock()
+def main():
+    X, y, person = load_data()
+    print(f"Loaded {len(y)} samples from {len(np.unique(person))} person(s): "
+          f"{', '.join(np.unique(person))}")
+    print("Samples per sign:")
+    print(pd.Series(y).value_counts().sort_index().to_string())
 
+    results = {}
+    for name, model in make_models().items():
+        acc, y_true, y_pred = evaluate(name, model, X, y, person)
+        results[name] = (acc, y_true, y_pred)
 
-def speak(text):
-    def run():
-        if not _speak_lock.acquire(blocking=False):
-            return                               # already speaking, skip
-        try:
-            import pyttsx3
-            engine = pyttsx3.init()
-            engine.say(text)
-            engine.runAndWait()
-        except Exception as e:
-            print("Speech error:", e)
-        finally:
-            _speak_lock.release()
+    best = max(results, key=lambda k: results[k][0])
+    acc, y_true, y_pred = results[best]
+    print(f"\nBest model: {best} (accuracy {acc:.3f})")
 
-    threading.Thread(target=run, daemon=True).start()
+    # confusion matrix: rows = true sign, columns = predicted sign
+    cm = pd.crosstab(pd.Series(y_true, name="true"), pd.Series(y_pred, name="predicted"))
+    print("\nConfusion matrix (rows = true, columns = predicted):")
+    print(cm.to_string())
 
-
-# ----------------------------------------------------------------------
-# Live camera demo
-# ----------------------------------------------------------------------
-def live():
-    import cv2
-    import mediapipe as mp
-
-    if not os.path.exists(MODEL_PATH):
-        raise SystemExit("No model found. Run: python train.py")
-
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
-    expected = model.n_features_in_
-
-    mp_hands = mp.solutions.hands
-    mp_draw = mp.solutions.drawing_utils
-    hands = mp_hands.Hands(
-        static_image_mode=False,
-        max_num_hands=2,
-        min_detection_confidence=0.6,
-        min_tracking_confidence=0.6,
-    )
-
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        raise SystemExit("Could not open the camera.")
-
-    history = deque(maxlen=SMOOTHING_FRAMES)
-    current = ""
-    last_spoken = ""
-    sentence = []
-    conf = 0.0
-
-    print("Live mode. Keys: q = quit, c = clear sentence, s = speak sentence")
-
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-
-        if FLIP_FRAME:
-            frame = cv2.flip(frame, 1)
-
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        result = hands.process(rgb)
-
-        if result.multi_hand_landmarks:
-            for hand in result.multi_hand_landmarks:
-                mp_draw.draw_landmarks(frame, hand, mp_hands.HAND_CONNECTIONS)
-
-            feats = extract_features(result.multi_hand_landmarks, result.multi_handedness)
-            if feats.shape[0] != expected:
-                raise SystemExit(
-                    f"Feature mismatch: model expects {expected}, live gives {feats.shape[0]}. "
-                    "Make extract_features/NORMALIZE match collect.py."
-                )
-
-            probs = model.predict_proba([feats])[0]
-            best = int(np.argmax(probs))
-            label, conf = str(model.classes_[best]), float(probs[best])
-            history.append(label if conf >= MIN_CONFIDENCE else "")
-
-            top, count = Counter(history).most_common(1)[0]
-            if top and count >= AGREE_FRAMES:
-                current = top
-                if current != last_spoken:
-                    speak(current)
-                    sentence.append(current)
-                    last_spoken = current
-            cv2.putText(frame, f"conf {conf:.2f}", (10, 110),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
-        else:
-            history.clear()
-            last_spoken = ""                     # lets the same sign be repeated later
-            current = ""
-
-        cv2.putText(frame, f"Sign: {current}", (10, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.4, (0, 255, 0), 3)
-        cv2.putText(frame, "Text: " + " ".join(sentence[-12:]), (10, 450),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
-
-        cv2.imshow("ISL Translator", frame)
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord("q"):
-            break
-        elif key == ord("c"):
-            sentence.clear()
-        elif key == ord("s") and sentence:
-            speak(" ".join(sentence))
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-
-# ----------------------------------------------------------------------
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1].lower() == "live":
-        live()
+    # list the most confused pairs
+    confused = [(t, p, int(cm.loc[t, p])) for t in cm.index for p in cm.columns
+                if t != p and cm.loc[t, p] > 0]
+    confused.sort(key=lambda r: -r[2])
+    if confused:
+        print("\nMost confused pairs (true -> predicted : count):")
+        for t, p, c in confused[:8]:
+            print(f"   {t} -> {p} : {c}")
     else:
-        train()
+        print("\nNo mistakes on the test data.")
+
+    # retrain the best model on ALL data and save it
+    final = make_models()[best]
+    final.fit(X, y)
+    os.makedirs("models", exist_ok=True)
+    joblib.dump(final, MODEL_PATH)
+    print(f"\nSaved {best} trained on all {len(y)} samples to {MODEL_PATH}")
+    print("Signs it knows:", list(final.classes_))
+
+
+if __name__ == "__main__":
+    main()
