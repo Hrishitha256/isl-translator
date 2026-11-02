@@ -214,8 +214,6 @@ PAGE = r"""
             <select id="lang">
               <option value="en-IN">English</option>
               <option value="hi-IN">Hindi</option>
-              <option value="te-IN">Telugu</option>
-              <option value="ta-IN">Tamil</option>
             </select>
           </label>
           <label><input type="checkbox" id="auto" checked> Speak each sign automatically</label>
