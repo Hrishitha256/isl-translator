@@ -25,12 +25,11 @@ from features import (create_hands, extract_features, draw_landmarks,
 # ---- EDIT THIS LIST once the team decides the vocabulary ----
 # Everyone must spell the labels exactly the same way.
 LABELS = ["1", "2", "3", "4", "5",
-          "A", "B", "C", "D", "E",
-          "Hello", "Thank you", "Yes", "No"]
+          "6", "7", "8", "9"]
 # --------------------------------------------------------------
 
 DATA_DIR = "data"
-TARGET_PER_LABEL = 150     # samples to record per sign
+TARGET_PER_LABEL = 300     # samples to record per sign
 AUTO_INTERVAL = 0.1        # seconds between auto-saved samples
 COUNTDOWN = 2.0            # seconds to get ready after pressing 'r'
 
