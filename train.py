@@ -88,7 +88,7 @@ def train():
     print("Train classes:", sorted(set(y_train)))
     print("Test classes: ", sorted(set(y_test)))
 
-    model = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1)
+    model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
     model.fit(X_train, y_train)
 
     pred = model.predict(X_test)
