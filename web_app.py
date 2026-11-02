@@ -74,54 +74,94 @@ def action():
 
 PAGE = r"""
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Prajna - ISL Translator</title>
 <style>
   :root {
-    --bg: #0e1130; --card: #1b2050; --feed: #0a0c26; --chip: #232a63;
-    --text: #ffffff; --muted: #a9b0e0; --amber: #f59e0b; --green: #1f8f63; --grey: #4b5280;
+    --bg: #0b0e2a; --card: #161b47; --feed: #080a1f; --chip: #212860;
+    --text: #ffffff; --muted: #a3abdc; --line: #2b3380;
+    --amber: #f59e0b; --green: #22c58b; --red: #f0616d; --grey: #4b5280;
+    --on-amber: #1a1200;
+  }
+  [data-theme="light"] {
+    --bg: #f2f4fc; --card: #ffffff; --feed: #dfe3f5; --chip: #e6e9f8;
+    --text: #141838; --muted: #5a6290; --line: #c4caea;
+    --amber: #e08600; --green: #12935f; --red: #d63c49; --grey: #7b82ab;
+    --on-amber: #ffffff;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
-         font-family: "Segoe UI", Arial, sans-serif; }
-  .page { max-width: 1180px; margin: 0 auto; padding: 28px 32px; }
-  header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 22px; }
-  h1 { margin: 0; font-size: 28px; }
+         font-family: "Segoe UI", Arial, sans-serif; transition: background .2s; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 26px 32px 40px; }
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 12px; }
+  h1 { margin: 0; font-size: 28px; letter-spacing: .3px; }
   .sub { color: var(--muted); font-size: 14px; margin-top: 2px; }
-  .pill { padding: 8px 18px; border-radius: 999px; font-size: 14px; font-weight: 600; background: var(--grey); }
+  .right { display: flex; align-items: center; gap: 10px; }
+  .pill { padding: 8px 18px; border-radius: 999px; font-size: 14px; font-weight: 600; background: var(--grey); color: #fff; }
   .pill.on { background: var(--green); }
-  .grid { display: grid; grid-template-columns: 1.55fr 1fr; gap: 22px; }
+  .icon-btn { margin: 0; padding: 8px 14px; border-radius: 999px; font-size: 14px; }
+
+  .grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 22px; }
   .card { background: var(--card); border-radius: 20px; padding: 24px; }
+  .label { color: var(--muted); font-size: 14px; margin-bottom: 10px; }
+
+  /* camera */
   .feed { position: relative; background: var(--feed); border-radius: 20px; min-height: 420px;
-          overflow: hidden; display: flex; align-items: center; justify-content: center; }
-  .feed .ph { color: var(--muted); font-size: 16px; position: absolute; }
+          overflow: hidden; display: flex; align-items: center; justify-content: center;
+          border: 3px solid transparent; transition: border-color .2s; }
+  .feed.found { border-color: var(--amber); }
+  .feed.sure  { border-color: var(--green); }
+  .feed .ph { color: var(--muted); position: absolute; }
   .feed img { position: relative; width: 100%; display: block; }
   .badge { position: absolute; top: 14px; left: 14px; z-index: 2; padding: 6px 14px;
            border-radius: 999px; font-size: 13px; font-weight: 700; background: var(--grey); color: #fff; }
-  .badge.on { background: var(--amber); color: #1a1200; }
-  .label { color: var(--muted); font-size: 14px; margin-bottom: 8px; }
-  #sign { font-size: 112px; font-weight: 800; color: var(--amber); line-height: 1.05; min-height: 118px; }
-  .bar { height: 10px; border-radius: 999px; background: #0d1030; overflow: hidden; margin: 14px 0 8px; }
-  .bar div { height: 100%; width: 0%; background: var(--amber); transition: width .2s; }
+  .badge.found { background: var(--amber); color: var(--on-amber); }
+  .badge.sure  { background: var(--green); color: #fff; }
+
+  /* detected sign + ring */
   .side { display: flex; flex-direction: column; gap: 22px; }
-  #text { font-size: 40px; font-weight: 800; letter-spacing: 2px; min-height: 56px;
-          word-break: break-all; margin: 6px 0 18px; text-transform: uppercase; }
-  #text.empty { color: #6b73b0; font-size: 18px; font-weight: 500; letter-spacing: 0;
-                text-transform: none; padding-top: 14px; }
-  button { font: inherit; font-weight: 700; font-size: 15px; padding: 11px 22px; border-radius: 12px;
-           cursor: pointer; margin: 0 8px 8px 0; border: 2px solid #8089d6; background: transparent; color: #fff; }
-  button.main { background: var(--amber); border-color: var(--amber); color: #1a1200; }
-  button:hover { filter: brightness(1.15); }
-  .auto { color: var(--muted); font-size: 14px; display: block; margin-top: 4px; }
-  .signs-title { color: var(--muted); font-size: 14px; margin: 26px 0 12px; }
-  .chips { display: flex; flex-wrap: wrap; gap: 10px; }
-  .chip { width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;
-          border-radius: 10px; background: var(--chip); font-weight: 700; font-size: 15px; transition: all .15s; }
-  .chip.hot { background: var(--amber); color: #1a1200; transform: scale(1.12); }
-  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+  .detect { display: flex; align-items: center; gap: 24px; }
+  .ring { position: relative; width: 150px; height: 150px; flex: none; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring .track { stroke: var(--chip); }
+  #arc { stroke: var(--grey); transition: stroke-dashoffset .25s, stroke .25s; }
+  #sign { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+          font-size: 68px; font-weight: 800; }
+  .meta { flex: 1; }
+  #conf { font-size: 34px; font-weight: 800; }
+  .hint { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+  /* sentence */
+  #text { font-size: 38px; font-weight: 800; letter-spacing: 2px; min-height: 52px;
+          word-break: break-all; margin: 4px 0 18px; text-transform: uppercase; }
+  #text.empty { color: var(--muted); font-size: 17px; font-weight: 500; letter-spacing: 0;
+                text-transform: none; padding-top: 14px; opacity: .8; }
+  button { font: inherit; font-weight: 700; font-size: 15px; padding: 10px 20px; border-radius: 12px;
+           cursor: pointer; margin: 0 8px 8px 0; border: 2px solid var(--line); background: transparent; color: var(--text); }
+  button.main { background: var(--amber); border-color: var(--amber); color: var(--on-amber); }
+  button:hover { filter: brightness(1.12); }
+  button:focus-visible, select:focus-visible { outline: 3px solid var(--amber); outline-offset: 2px; }
+  .opts { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; margin-top: 8px; color: var(--muted); font-size: 14px; }
+  select { font: inherit; background: var(--chip); color: var(--text); border: 2px solid var(--line);
+           border-radius: 10px; padding: 6px 10px; }
+
+  /* bottom row */
+  .bottom { display: grid; grid-template-columns: 1.5fr 1fr; gap: 22px; margin-top: 22px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+          border-radius: 10px; background: var(--chip); font-weight: 700; font-size: 14px; transition: all .15s; }
+  .chip.hot { background: var(--amber); color: var(--on-amber); transform: scale(1.12); }
+  #history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 180px; overflow: auto; }
+  #history li { background: var(--chip); border-radius: 10px; padding: 9px 14px; cursor: pointer;
+                display: flex; justify-content: space-between; gap: 10px; font-weight: 600; word-break: break-all; }
+  #history li span { color: var(--muted); font-weight: 500; font-size: 13px; flex: none; }
+  .empty-note { color: var(--muted); font-size: 14px; }
+
+  @media (max-width: 900px) { .grid, .bottom { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
@@ -131,12 +171,15 @@ PAGE = r"""
       <h1>Prajna</h1>
       <div class="sub">Indian Sign Language to text and speech</div>
     </div>
-    <div class="pill" id="cam">Camera off</div>
+    <div class="right">
+      <button class="icon-btn" id="theme" onclick="toggleTheme()">Light mode</button>
+      <div class="pill" id="cam">Camera off</div>
+    </div>
   </header>
 
   <div class="grid">
-    <div class="feed">
-      <span class="badge" id="hand">No hand</span>
+    <div class="feed" id="feed">
+      <span class="badge" id="hand">Searching for hand</span>
       <span class="ph">Live camera feed</span>
       <img src="/video" alt="">
     </div>
@@ -144,47 +187,113 @@ PAGE = r"""
     <div class="side">
       <div class="card">
         <div class="label">Detected sign</div>
-        <div id="sign">-</div>
-        <div class="bar"><div id="fill"></div></div>
-        <div class="label" id="conf">Confidence 0%</div>
+        <div class="detect">
+          <div class="ring">
+            <svg width="150" height="150" viewBox="0 0 150 150" fill="none" stroke-width="12" stroke-linecap="round">
+              <circle class="track" cx="75" cy="75" r="64"/>
+              <circle id="arc" cx="75" cy="75" r="64" stroke-dasharray="402.1" stroke-dashoffset="402.1"/>
+            </svg>
+            <div id="sign">-</div>
+          </div>
+          <div class="meta">
+            <div id="conf">0%</div>
+            <div class="hint" id="hint">Show a sign to the camera</div>
+          </div>
+        </div>
       </div>
 
       <div class="card">
         <div class="label">Sentence</div>
-        <div id="text" class="empty">Show a sign to begin</div>
+        <div id="text" class="empty">Your signs will appear here</div>
         <button class="main" onclick="speakAll()">Speak</button>
         <button onclick="act('space')">Space</button>
         <button onclick="act('backspace')">Backspace</button>
         <button onclick="act('clear')">Clear</button>
-        <label class="auto"><input type="checkbox" id="auto" checked> Speak each sign automatically</label>
+        <div class="opts">
+          <label>Voice language
+            <select id="lang">
+              <option value="en-IN">English</option>
+              <option value="hi-IN">Hindi</option>
+              <option value="te-IN">Telugu</option>
+              <option value="ta-IN">Tamil</option>
+            </select>
+          </label>
+          <label><input type="checkbox" id="auto" checked> Speak each sign automatically</label>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="signs-title">Supported signs</div>
-  <div class="chips" id="chips"></div>
+  <div class="bottom">
+    <div class="card">
+      <div class="label">Supported signs</div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="card">
+      <div class="label">Spoken sentences (tap to replay)</div>
+      <ul id="history"></ul>
+      <div class="empty-note" id="hist-empty">Sentences you speak will be saved here.</div>
+    </div>
+  </div>
 </div>
 
 <script>
+const CIRC = 402.1;
 let prev = "";
 let chipsBuilt = false;
+const $ = id => document.getElementById(id);
 
+/* theme */
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $("theme").textContent = t === "dark" ? "Light mode" : "Dark mode";
+  try { localStorage.setItem("prajna-theme", t); } catch (e) {}
+}
+function toggleTheme() {
+  setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+}
+try { setTheme(localStorage.getItem("prajna-theme") || "dark"); } catch (e) {}
+
+/* speech */
 function say(t) {
   if (!t || !t.trim()) return;
   const u = new SpeechSynthesisUtterance(t);
+  u.lang = $("lang").value;
   u.rate = 0.9;
+  const v = speechSynthesis.getVoices().find(v => v.lang === u.lang);
+  if (v) u.voice = v;
   speechSynthesis.speak(u);
 }
 function speakAll() {
-  const t = document.getElementById("text").dataset.value || "";
+  const t = $("text").dataset.value || "";
+  if (!t.trim()) return;
   say(t.replace(/\d/g, d => d + " "));        // "123" is read as "1 2 3"
+  addHistory(t);
 }
+
+/* history */
+function addHistory(t) {
+  const list = $("history");
+  if (list.firstChild && list.firstChild.dataset.value === t) return;
+  const li = document.createElement("li");
+  li.dataset.value = t;
+  const name = document.createElement("div");
+  name.textContent = t;
+  const tm = document.createElement("span");
+  tm.textContent = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
+  li.append(name, tm);
+  li.onclick = () => say(t.replace(/\d/g, d => d + " "));
+  list.prepend(li);
+  $("hist-empty").style.display = "none";
+}
+
 async function act(d) {
   await fetch("/action", {method: "POST", headers: {"Content-Type": "application/json"},
                           body: JSON.stringify({do: d})});
 }
+
 function buildChips(classes) {
-  const box = document.getElementById("chips");
+  const box = $("chips");
   box.innerHTML = "";
   classes.forEach(c => {
     const el = document.createElement("div");
@@ -193,42 +302,51 @@ function buildChips(classes) {
   });
   chipsBuilt = true;
 }
+
 async function tick() {
   try {
     const s = await (await fetch("/state")).json();
     if (!chipsBuilt) buildChips(s.classes);
 
-    const cam = document.getElementById("cam");
+    const cam = $("cam");
     cam.textContent = s.camera ? "Camera on" : "Camera off";
     cam.className = "pill" + (s.camera ? " on" : "");
 
-    const hand = document.getElementById("hand");
-    hand.textContent = s.hand ? "Hand detected" : "No hand";
-    hand.className = "badge" + (s.hand ? " on" : "");
-
-    document.getElementById("sign").textContent = s.label ? s.label : "-";
+    /* hand state: searching -> detected -> recognized */
     const pct = s.label ? Math.round(s.conf * 100) : 0;
-    document.getElementById("fill").style.width = pct + "%";
-    document.getElementById("conf").textContent = "Confidence " + pct + "%";
+    const state = !s.hand ? "" : (pct >= 80 ? "sure" : "found");
+    $("hand").textContent = !s.hand ? "Searching for hand" : (pct >= 80 ? "Recognized" : "Hand detected");
+    $("hand").className = "badge " + state;
+    $("feed").className = "feed " + state;
+
+    /* ring */
+    const color = !s.hand ? "var(--grey)" : pct >= 80 ? "var(--green)" : pct >= 50 ? "var(--amber)" : "var(--red)";
+    $("arc").style.strokeDashoffset = CIRC * (1 - pct / 100);
+    $("arc").style.stroke = color;
+    $("sign").textContent = s.label ? s.label : "-";
+    $("sign").style.color = s.label ? color : "var(--muted)";
+    $("conf").textContent = pct + "%";
+    $("hint").textContent = !s.hand ? "Show a sign to the camera"
+                          : pct >= 80 ? "Clear sign" : "Hold steady for a clearer read";
 
     document.querySelectorAll(".chip").forEach(c => c.classList.remove("hot"));
     if (s.label) {
-      const c = document.getElementById("chip-" + s.label);
+      const c = $("chip-" + s.label);
       if (c) c.classList.add("hot");
     }
 
-    const t = document.getElementById("text");
+    const t = $("text");
     t.dataset.value = s.text;
     if (s.text) { t.textContent = s.text; t.className = ""; }
-    else { t.textContent = "Show a sign to begin"; t.className = "empty"; }
+    else { t.textContent = "Your signs will appear here"; t.className = "empty"; }
 
-    if (document.getElementById("auto").checked &&
-        s.text.length > prev.length && s.text.startsWith(prev)) {
+    if ($("auto").checked && s.text.length > prev.length && s.text.startsWith(prev)) {
       say(s.text.slice(prev.length));
     }
     prev = s.text;
   } catch (e) {}
 }
+speechSynthesis.getVoices();
 setInterval(tick, 200);
 </script>
 </body>
