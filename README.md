@@ -10,6 +10,8 @@ Prajna is a real-time computer vision application that translates Indian Sign La
 
 **Repository:** [isl-translator](https://github.com/Hrishitha256/isl-translator)
 
+**Screenshots:** Refer docs file
+
 **Team Prajna:** Hrishitha, Ramya, Saisree
 
 ---
