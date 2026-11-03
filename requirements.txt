@@ -6,3 +6,4 @@ pandas
 joblib
 pyttsx3
 streamlit
+flask
