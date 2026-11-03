@@ -95,7 +95,7 @@ More signs and better recognition
 •	Motion signs: a sequence model (LSTM or Transformer) on short windows of landmarks.
 •	More signers and lighting conditions, plus extra features such as finger angles.
 
-10. Team
+9. Team
 Name	Role
 Saisree	Data and model
 Hrishitha	Real-time pipeline
