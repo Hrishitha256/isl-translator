@@ -4,6 +4,7 @@ Prajna: Indian Sign Language to Text and Speech
 Neural Storm Hackathon 2026 | Problem Statement FT-04: Sign Language to Text/Speech Translator
 
 Prajna is a real-time computer vision application that reads Indian Sign Language (ISL) numerals from a webcam and turns them into on-screen text and spoken audio. It runs on an ordinary laptop with no GPU, and the recognition happens entirely on the laptop.
+
 Demo video: [Watch the demo] https://drive.google.com/file/d/1MFErkUkxI9FVIq441kEvpiOT2OJRVdJf/view
 Repository: https://github.com/Hrishitha256/isl-translator
 Team Prajna: Hrishitha, Ramya, Saisree
