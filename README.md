@@ -425,7 +425,3 @@ Future improvements include:
 ---
 
 **Prajna – Making Everyday Communication More Accessible Through Technology.**
-Saisree	Data and model
-Hrishitha	Real-time pipeline
-Ramya	Speech, interface and documentation
-
